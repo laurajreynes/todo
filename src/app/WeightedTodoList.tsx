@@ -1,6 +1,5 @@
 "use client";
 import React, { useState } from "react";
-import { Plus } from "lucide-react"; // Optional icon library. 
 // If you don't want icons, remove import & <Plus /> below.
 
 interface Action {
@@ -165,7 +164,7 @@ export default function WeightedTodoList() {
               shadow-md
             "
           >
-            <Plus className="text-white" size={20} />
+            +
           </button>
         </div>
 
