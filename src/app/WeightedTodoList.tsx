@@ -1,18 +1,32 @@
 "use client";
-import React, { useState } from "react";
-// If you don't want icons, remove import & <Plus /> below.
+import React, { useState, useEffect } from "react";
+import { Plus } from "lucide-react"; // Optional icon, remove if not needed
 
 interface Action {
   id: number;
   text: string;
   weight: number;
   completed: boolean;
+  isEditing?: boolean; // to toggle edit mode
 }
 
 export default function WeightedTodoList() {
   const [actions, setActions] = useState<Action[]>([]);
   const [newAction, setNewAction] = useState("");
   const [newWeight, setNewWeight] = useState("");
+
+  // 1) Load from localStorage on initial render
+  useEffect(() => {
+    const saved = localStorage.getItem("weightedActions");
+    if (saved) {
+      setActions(JSON.parse(saved));
+    }
+  }, []);
+
+  // 2) Save to localStorage whenever actions change
+  useEffect(() => {
+    localStorage.setItem("weightedActions", JSON.stringify(actions));
+  }, [actions]);
 
   // Add new action
   function handleAdd() {
@@ -24,6 +38,7 @@ export default function WeightedTodoList() {
           text: newAction,
           weight: Number(newWeight),
           completed: false,
+          isEditing: false,
         },
       ]);
       setNewAction("");
@@ -36,14 +51,54 @@ export default function WeightedTodoList() {
     setActions([]);
   }
 
-  // Progress calculation
+  // Toggle completed
+  function toggleComplete(id: number) {
+    setActions((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, completed: !item.completed } : item
+      )
+    );
+  }
+
+  // Enter/Exit edit mode
+  function toggleEdit(id: number) {
+    setActions((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, isEditing: !item.isEditing } : item
+      )
+    );
+  }
+
+  // Save edited text/weight
+  function handleEditSave(id: number, newText: string, newWt: number) {
+    setActions((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, text: newText, weight: newWt, isEditing: false }
+          : item
+      )
+    );
+  }
+
+  // Sort completed tasks to bottom
+  const sortedActions = [...actions].sort((a, b) => {
+    // If A is completed and B is not, move A down => return 1
+    // If B is completed and A is not, move B down => return -1
+    if (a.completed && !b.completed) return 1;
+    if (!a.completed && b.completed) return -1;
+    return 0;
+  });
+
+  // Calculate progress
   const totalImpact = actions.reduce((sum, a) => sum + a.weight, 0);
   const completedImpact = actions.reduce(
     (sum, a) => sum + (a.completed ? a.weight : 0),
     0
   );
+
+  // Convert to integer, no decimals:
   const progressPercent = totalImpact
-    ? (completedImpact / totalImpact) * 100
+    ? Math.floor((completedImpact / totalImpact) * 100)
     : 0;
 
   return (
@@ -52,13 +107,13 @@ export default function WeightedTodoList() {
         relative
         min-h-screen
         bg-fixed bg-cover bg-center
-        p-6 
+        p-6
         scroll-smooth
         flex items-center justify-center
       "
       style={{ backgroundImage: "url('/images/mountains.jpg')" }}
     >
-      {/* 1) Subtle gradient overlay */}
+      {/* Gradient Overlay */}
       <div
         className="
           absolute
@@ -70,7 +125,6 @@ export default function WeightedTodoList() {
         "
       />
 
-      {/* 2) Translucent Card */}
       <div
         className="
           relative
@@ -84,15 +138,15 @@ export default function WeightedTodoList() {
           transition-all duration-300
         "
       >
-        {/* Header + Progress Bar */}
+        {/* Header + Progress */}
         <div className="mb-4">
           <h1 className="text-3xl text-[#2B4C7E] font-bold text-center mb-2">
             Today is Your Masterpiece!
           </h1>
           <div className="flex items-center justify-between text-sm text-[#4A7AB8]">
-            <span>{progressPercent.toFixed(1)}% Complete</span>
+            <span>{progressPercent}% Complete</span>
             <span className="opacity-60 text-gray-500">
-              {completedImpact} / {totalImpact} Impact
+              {completedImpact} / {totalImpact}
             </span>
           </div>
           {/* Progress bar */}
@@ -104,7 +158,7 @@ export default function WeightedTodoList() {
           </div>
         </div>
 
-        {/* Input + Button Row */}
+        {/* New Action Inputs */}
         <div className="flex flex-wrap items-center gap-4 mt-8">
           <input
             type="text"
@@ -148,7 +202,6 @@ export default function WeightedTodoList() {
             ))}
           </select>
 
-          {/* Add Button */}
           <button
             onClick={handleAdd}
             className="
@@ -164,11 +217,10 @@ export default function WeightedTodoList() {
               shadow-md
             "
           >
-            +
+            <Plus className="text-white" size={20} />
           </button>
         </div>
 
-        {/* Reset link */}
         <div className="text-right mt-6">
           <button
             onClick={handleReset}
@@ -184,13 +236,15 @@ export default function WeightedTodoList() {
           </button>
         </div>
 
-        {/* Task list */}
+        {/* Render the sorted list of tasks */}
         <ul className="mt-6 space-y-3">
-          {actions.map((action) => (
+          {sortedActions.map((action) => (
             <li
               key={action.id}
               className="
-                flex items-center gap-3
+                flex flex-col sm:flex-row 
+                items-start sm:items-center
+                justify-between
                 text-gray-700
                 p-2
                 bg-white/70
@@ -200,34 +254,123 @@ export default function WeightedTodoList() {
                 transition
               "
             >
-              <input
-                type="checkbox"
-                checked={action.completed}
-                onChange={() => {
-                  setActions((prev) =>
-                    prev.map((item) =>
-                      item.id === action.id
-                        ? { ...item, completed: !item.completed }
-                        : item
-                    )
-                  );
-                }}
-                className="
-                  cursor-pointer
-                  rounded
-                  focus:ring-[#4A7AB8]
-                  focus:outline-none
-                "
-              />
-              <span
-                className={
-                  action.completed
-                    ? "line-through text-gray-400"
-                    : "text-gray-700"
-                }
-              >
-                {action.text} (Impact: {action.weight})
-              </span>
+              <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                {/* Complete Checkbox */}
+                <input
+                  type="checkbox"
+                  checked={action.completed}
+                  onChange={() => toggleComplete(action.id)}
+                  className="
+                    cursor-pointer
+                    rounded
+                    focus:ring-[#4A7AB8]
+                    focus:outline-none
+                  "
+                />
+
+                {/* Display vs Edit */}
+                {action.isEditing ? (
+                  // Editing mode
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      defaultValue={action.text}
+                      id={`edit-text-${action.id}`}
+                      className="
+                        bg-transparent
+                        border-b border-gray-300
+                        text-gray-700
+                        focus:border-[#4A7AB8]
+                        focus:ring-2 focus:ring-[#4A7AB8]
+                        focus:outline-none
+                        transition-all
+                        duration-300
+                      "
+                    />
+                    <select
+                      defaultValue={action.weight}
+                      id={`edit-weight-${action.id}`}
+                      className="
+                        bg-transparent
+                        border-b border-gray-300
+                        text-gray-700
+                        focus:border-[#4A7AB8]
+                        focus:ring-2 focus:ring-[#4A7AB8]
+                        focus:outline-none
+                        transition-all
+                        duration-300
+                      "
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        <option key={num} value={num}>
+                          {num}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  // Normal display mode
+                  <span
+                    className={
+                      action.completed
+                        ? "line-through text-gray-400"
+                        : "text-gray-700"
+                    }
+                  >
+                    {action.text} ({action.weight})
+                  </span>
+                )}
+              </div>
+
+              {/* Edit/Save Buttons */}
+              <div className="flex items-center gap-3">
+                {action.isEditing ? (
+                  <button
+                    onClick={() => {
+                      // Grab the values from inputs
+                      const newText = (
+                        document.getElementById(
+                          `edit-text-${action.id}`
+                        ) as HTMLInputElement
+                      )?.value;
+                      const newWt = parseInt(
+                        (
+                          document.getElementById(
+                            `edit-weight-${action.id}`
+                          ) as HTMLSelectElement
+                        )?.value
+                      );
+                      handleEditSave(action.id, newText, newWt);
+                    }}
+                    className="
+                      text-sm
+                      bg-green-500
+                      text-white
+                      px-3 py-1
+                      rounded
+                      hover:bg-green-600
+                      transition
+                    "
+                  >
+                    Save
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => toggleEdit(action.id)}
+                    className="
+                      text-sm
+                      bg-gray-200
+                      text-gray-700
+                      px-3 py-1
+                      rounded
+                      hover:bg-gray-300
+                      transition
+                    "
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>
